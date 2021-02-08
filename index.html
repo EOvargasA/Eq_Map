@@ -1,0 +1,263 @@
+<html>
+    <head>
+        <!--Libreria de google maps-->
+        <script defer src="https://maps.googleapis.com/maps/api/js?key=Google_API_Key&callback=initMap"></script>
+        <!--Libreria de axios-->
+        <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+        <style type="text/css">
+            #map{
+                height: 500px;
+                width: 100%;
+            }
+        </style>
+        <title>Mapa de terremotos</title>
+    </head>
+    <body>
+        <Form id="forma">
+            Introdusca la ciudad a buscar
+            <input type="text" id="ciudad">
+            <input type="submit" value="Buscar">
+        </Form>
+
+        <div id="map"></div>
+
+        <p>10 terremotos mas grandes del ultimo ano</p>
+        <div id="top_eq"></div>
+
+        <script>
+            const myForm = document.getElementById("forma");
+            var map, local, markers = [], ganadores = [];
+
+            myForm.addEventListener("submit", (e) =>{
+                e.preventDefault();
+                //console.log(document.getElementById("ciudad").value);
+
+                resetMarkers();
+                
+                axios.get("https://maps.googleapis.com/maps/api/geocode/json",{
+                    params: {
+                        address: document.getElementById("ciudad").value,
+                        key: 'Google_API_Key'
+                    }
+                }).then(function(response){
+                    local = response.data.results[0].geometry.location;
+                    earthquake(local, 2);
+                }).catch(function(error){
+                    console.log(error);
+                });
+
+            });
+
+            function initMap(){
+                var coord = {lat: 22.2662364, lng: -97.9045051};
+
+                map = new google.maps.Map(document.getElementById("map"), {
+                    zoom: 12,
+                    center: coord
+                });
+
+                //crearMarcador(coord, "Tampico", "8.7");
+            }
+
+            function earthquake(posicion, amplitud){
+
+                valNorth = posicion.lat + amplitud;
+                valSouth = posicion.lat - amplitud,
+                valEast = posicion.lng + amplitud,
+                valWest = posicion.lng - amplitud,
+
+                axios.get("http://api.geonames.org/earthquakesJSON", {
+                    params: {
+                        north: valNorth,
+                        south: valSouth,
+                        east: valEast,
+                        west: valWest,
+                        /*north: 44.1,
+                        south: -9.9,
+                        east: -22.4,
+                        west: 55.2,*/
+                        username: 'Geonames_Uname'
+                    }
+                }).then(function(response){
+                    lista = response.data.earthquakes;
+                    //console.log(response.data.earthquakes);
+                    lista.forEach(element =>{
+                        marcador = {lat: element.lat, lng: element.lng};
+                        fecha = ""+element.datetime;
+                        magnitud = ""+element.magnitude;
+                        /*console.log(marcador);
+                        console.log(fecha);
+                        console.log(magnitud);*/
+                        crearMarcador(marcador, fecha, magnitud);
+                    });
+                    map.setCenter(local);
+                    map.setZoom(8);
+                }).catch(function(error){
+                    console.log(error);
+                });
+
+            }
+
+            function crearMarcador(coordenadas, info, magnitud){
+                var marker = new google.maps.Marker({
+                    position: coordenadas,
+                    map: map,
+                    title: info,
+                    label: magnitud
+                });
+
+                markers[markers.length] = marker;
+            }
+
+            function resetMarkers(){
+                for(a in markers){
+                    markers[a].setMap(null);
+                }
+                markers = [];
+            }
+        
+            function bestEarthquakes2020(){
+                nominados(-90, 90, -180, 0);
+            }
+
+            function nominados(valNorth, valSouth, valEast, valWest){
+                //console.log("North: "+valNorth+" South: "+valSouth+" East: "+valEast+" West: "+valWest);
+
+                axios.get("http://api.geonames.org/earthquakesJSON", {
+                    params: {
+                        north: valNorth,
+                        south: valSouth,
+                        east: valEast,
+                        west: valWest,
+                        maxRows: 100,
+                        date: "2021-02-06",
+                        minMagnitude: 6.8,
+                        username: 'Geonames_Uname'
+                    }
+                }).then(function(response){
+                    lista = response.data.earthquakes;
+                    fechaMin = Date.now() - 365 * 24 * 60 * 60 * 1000;
+                    fechaMin = new Date(fechaMin);
+                    //console.log(fecha);
+                    lista.some(element =>{
+                        fecha = new Date(element.datetime);
+                        if(fecha > fechaMin){
+                            jurado(element);
+                            //ganadores[ganadores.length] = element;
+                        }else{
+                            return true;
+                        }
+                    });
+
+                    if(valWest >= 180){
+                        tablas();
+                    }else{
+                        nominados(-90, 90, 0, 180)
+                    }
+                }).catch(function(error){
+                    console.log(error);
+                });
+            }
+
+            function jurado(candidato){
+                added = false;
+                for(i = ganadores.length-1; i >= 0; i--){
+                    if(candidato.magnitude > ganadores[i].magnitude){
+                        if(i < 9){
+                            ganadores[i+1] = ganadores[i];
+                        }
+                        ganadores[i] = candidato;
+                        added = true;
+                    }else{
+                        i = -1;
+                    }
+                }
+
+                if(!added && ganadores.length < 10){
+                    ganadores[ganadores.length] = candidato;
+                }
+            }
+
+            function tablas(){
+                var posicion = document.getElementById("top_eq");
+                
+                var hilera = document.createElement("tr");
+                
+                var tabla = document.createElement("table");
+                var tblBody = document.createElement("tbody");
+                var numero = 1;
+
+                var celda1 = document.createElement("td");
+                var textoCelda1 = document.createTextNode("Puesto");
+                celda1.appendChild(textoCelda1);
+                hilera.appendChild(celda1);
+
+                var celda2 = document.createElement("td");
+                var textoCelda2 = document.createTextNode("Magnitud");
+                celda2.appendChild(textoCelda2);
+                hilera.appendChild(celda2);
+
+                var celda3 = document.createElement("td");
+                var textoCelda3 = document.createTextNode("Fecha");
+                celda3.appendChild(textoCelda3);
+                hilera.appendChild(celda3);
+
+                var celda4 = document.createElement("td");
+                var textoCelda4 = document.createTextNode("Latitud");
+                celda4.appendChild(textoCelda4);
+                hilera.appendChild(celda4);
+
+                var celda5 = document.createElement("td");
+                var textoCelda5 = document.createTextNode("Longitud");
+                celda5.appendChild(textoCelda5);
+                hilera.appendChild(celda5);
+
+                tblBody.appendChild(hilera);
+
+                ganadores.forEach(element =>{
+
+                    var hilera = document.createElement("tr");
+                    
+                    var celda1 = document.createElement("td");
+                    var textoCelda1 = document.createTextNode(numero);
+                    celda1.appendChild(textoCelda1);
+                    hilera.appendChild(celda1);
+
+                    var celda2 = document.createElement("td");
+                    var textoCelda2 = document.createTextNode(element.magnitude);
+                    celda2.appendChild(textoCelda2);
+                    hilera.appendChild(celda2);
+
+                    var celda3 = document.createElement("td");
+                    var textoCelda3 = document.createTextNode(element.datetime);
+                    celda3.appendChild(textoCelda3);
+                    hilera.appendChild(celda3);
+
+                    var celda4 = document.createElement("td");
+                    var textoCelda4 = document.createTextNode(element.lat);
+                    celda4.appendChild(textoCelda4);
+                    hilera.appendChild(celda4);
+
+                    var celda5 = document.createElement("td");
+                    var textoCelda5 = document.createTextNode(element.lng);
+                    celda5.appendChild(textoCelda5);
+                    hilera.appendChild(celda5);
+
+                    tblBody.appendChild(hilera);
+                    numero = numero + 1;
+                });
+                
+                // posiciona el <tbody> debajo del elemento <table>
+                tabla.appendChild(tblBody);
+
+                // modifica el atributo "border" de la tabla y lo fija a "2";
+                tabla.setAttribute("border", "2");
+
+                posicion.appendChild(tabla);
+            }
+
+            bestEarthquakes2020();
+        </script>
+
+    </body>
+</html>
